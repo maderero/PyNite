@@ -10,11 +10,11 @@ from PyNite import FEModel3D
 f = FEModel3D()
 
 # Define Shape
-length_verticals = 10*12
+length_verticals = 12*12
 length_horizontals = 10*12
-count_horizontals = 10
-count_verticals = 10
-strong_params = {'E': 999999, 'G': 100, 'Iy': 1000, 'Iz': 1000, 'J': 100, 'A': 100}
+count_horizontals = 4
+count_verticals = 4
+strong_params = {'E': 29000, 'G': 11200, 'Iy': 11.4, 'Iz': 118, 'J': 0.239, 'A': 6.49}  # W10X22
 
 # Add Horizontals
 releases_horizontals = {'Ryi': True, 'Rzi': True, 'Ryj': True, 'Rzj': True, }
@@ -93,7 +93,7 @@ f.analyze(log=False, check_statics=True)
 theoretical_members = 2 * count_horizontals * count_verticals - count_horizontals - count_verticals
 actual_members = len(f.Members)
 
-# Display the deformed shape of the structure magnified 50 times with the text
+# Display the deformed shape of the structure magnified 1 times with the text
 # height 2 model units (inches) high.
 from PyNite import Visualization
-Visualization.render_model(f, annotation_size=2, deformed_shape=True, deformed_scale=50)
+Visualization.render_model(f, annotation_size=2, deformed_shape=True, deformed_scale=1)
