@@ -3,8 +3,8 @@ from os import rename
 import warnings
 
 from numpy import array, zeros, matmul, divide, subtract, atleast_2d, nanmax
-from numpy import seterr
-from numpy.linalg import solve
+from numpy import seterr, interp
+from numpy.linalg import solve, norm
 
 from PyNite.Node3D import Node3D
 from PyNite.Spring3D import Spring3D
@@ -748,6 +748,10 @@ class FEModel3D():
         # Apply the end releases to the member
         self.Members[Member].Releases = [Dxi, Dyi, Dzi, Rxi, Ryi, Rzi, Dxj, Dyj, Dzj, Rxj, Ryj, Rzj]     
 
+    def get_releases(self, Member):
+        keys = 'Dxi', 'Dyi', 'Dzi', 'Rxi', 'Ryi', 'Rzi', 'Dxj', 'Dyj', 'Dzj', 'Rxj', 'Ryj', 'Rzj'
+        return {key: value for key, value in zip(keys, self.Members[Member].Releases)}
+
     def add_load_combo(self, name, factors, combo_type='strength'):
         '''
         Adds a load combination to the model
@@ -815,7 +819,7 @@ class FEModel3D():
         # Add the point load to the member
         self.Members[Member].PtLoads.append((Direction, P, x, case))
 
-    def add_member_dist_load(self, Member, Direction, w1, w2, x1=None, x2=None, case='Case 1'):
+    def add_member_dist_load(self, Member, Direction, w1, w2=None, x1=None, x2=None, case='Case 1'):
         '''
         Adds a member distributed load to the model.
         
@@ -843,6 +847,8 @@ class FEModel3D():
             raise ValueError(f"Direction must be 'Fx', 'Fy', 'Fz', 'FX', 'FY', or 'FZ'. {Direction} was given.")
         # Determine if a starting and ending points for the load have been specified.
         # If not, use the member start and end as defaults
+        if w2 is None:
+            w2 = w1
         if x1 == None:
             start = 0
         else:
@@ -2861,10 +2867,108 @@ class FEModel3D():
             # Determine if the node is orphaned
             if quads == [] and plates == [] and members == [] and springs == []:
                 orphaned = True
-            
+
             # Add the orphaned nodes to the list of orphaned nodes
             if orphaned == True:
                 orphans.append(node.name)
-        
+
         return orphans
-      
+
+    def find_node_by_coordinates(self, coordinates, tolerance=1e-3):
+        for Node, node in self.Nodes.items():
+            if norm(subtract(node.coordinates, coordinates)) <= tolerance:
+                return Node
+
+    def repair(self, merge_duplicates=True, tolerance_node=1e-3, tolerance_intersection=1e-3):
+        if merge_duplicates:
+            self.merge_duplicate_nodes(tolerance=tolerance_node)
+
+        unverified_members = list(self.Members.values())
+        while unverified_members:
+            primary_member = unverified_members.pop(0)
+            for i, secondary_member in enumerate(unverified_members):
+                intersection = primary_member.intersection(
+                    secondary_member,
+                    tolerance=tolerance_intersection,
+                    virtual=False)
+
+                if intersection is None:
+                    continue
+
+                Node = self.find_node_by_coordinates(
+                    intersection,
+                    tolerance_node)
+
+                if not Node:
+                    Node = self.add_node(None, *intersection)
+
+                for member in (primary_member, secondary_member):
+                    new_members = self.split_member_at_node(member.name, Node)
+
+                    unverified_members.extend(new_members)
+
+                unverified_members.pop(i)
+                break
+
+    def split_member_at_node(self, Member, Node, name_i=None, name_j=None):
+        member = self.Members.pop(Member)
+        node = self.Nodes[Node]
+
+        if node in member.nodes:
+            return (member, )
+
+        name_i = self.add_member(name_i, member.i_node.name, node.name, member.properties)
+        name_j = self.add_member(name_j, node.name, member.j_node.name, member.properties)
+
+        releases = self.get_releases(member.name)
+        releases_i = {key: value for key, value in releases.items() if key.endswith('i')}
+        releases_j = {key: value for key, value in releases.items() if key.endswith('j')}
+        self.def_releases(name_i, **releases_i)
+        self.def_releases(name_j, **releases_j)
+
+        length_i = self.Members[name_i].L()
+        length_j = self.Members[name_j].L()
+
+        start, middle, end = 0, length_i, length_i+length_j
+
+        for i in range(len(member.DistLoads)-1, -1, -1):
+            # step backwards to correctly pop indices
+            direction, w1, w2, x1, x2, case = member.DistLoads.pop(i)
+
+            if x1 > x2:
+                x1, x2 = x2, x1
+                w1, w2 = w2, w1
+
+            if start <= x1 <= middle:
+                x1i = max(start, x1)
+                x2i = min(middle, x2)
+                w1i, w2i = interp((x1i, x2i), (x1, x2), (w1, w2))
+                self.add_member_dist_load(
+                    name_i,
+                    direction,
+                    w1i, w2i,
+                    x1i, x2i,
+                    case)
+
+            if middle < x2 <= end:
+                x1j = max(middle, x1)
+                x2j = min(end, x2)
+                w1j, w2j = interp((x1j, x2j), (x1, x2), (w1, w2))
+                self.add_member_dist_load(
+                    name_j,
+                    direction,
+                    w1j, w2j,
+                    x1j-middle,
+                    x2j-middle,
+                    case)
+
+        for i in range(len(member.PtLoads)-1, -1, -1):
+            direction, P, x, case = member.PtLoads.pop(i)
+
+            if start <= x <= middle:
+                self.add_member_pt_load(name_i, direction, P, x, case)
+
+            elif middle < x <= end:
+                self.add_member_pt_load(name_j, direction, P, x-middle, case)
+
+        return self.Members[name_i], self.Members[name_j]

@@ -1,6 +1,6 @@
 # %%
-from numpy import array, zeros, matrix, add, subtract, matmul, insert, cross, divide
-from numpy.linalg import inv
+from numpy import array, zeros, matrix, add, subtract, matmul, insert, cross, divide, multiply
+from numpy.linalg import inv, det, norm
 from math import isclose
 from PyNite.BeamSegZ import BeamSegZ
 from PyNite.BeamSegY import BeamSegY
@@ -1764,4 +1764,92 @@ class Member3D():
 
                                 SegmentsY[i].V1 += (f1[2] + f2[2])/2*(x2 - x1)
                                 SegmentsY[i].M1 += (x1 - x2)*(2*f1[2]*x1 - 3*f1[2]*x + f1[2]*x2 + f2[2]*x1 - 3*f2[2]*x + 2*f2[2]*x2)/6
-                            
+
+    @property
+    def nodes(self):
+        return (self.i_node, self.j_node)
+
+    @property
+    def coordinates(self):
+        return (node.coordinates for node in self.nodes)
+
+    def intersection(self, other, tolerance=1e-3, virtual=False):
+        if virtual:
+            return self.intersection_virtual(other, tolerance)
+
+        return self.intersection_real(other, tolerance)
+
+    def intersection_virtual(self, other, tolerance=1e-3):
+        o1, p1 = self.coordinates
+        o2, p2 = other.coordinates
+        d1 = divide(subtract(p1, o1), self.L())
+        d2 = divide(subtract(p2, o2), other.L())
+        d1xd2 = cross(d1, d2)
+        denominator = norm(d1xd2) ** 2
+        if denominator <= tolerance:
+            return None
+
+        o2_o1 = subtract(o2, o1)
+        det1 = det((o2_o1, d2, d1xd2))
+        det2 = det((o2_o1, d1, d1xd2))
+        p1 = multiply(add(o1, d1), det1 / denominator)
+        p2 = multiply(add(o2, d2), det2 / denominator)
+        if norm(subtract(p2, p1)) <= tolerance:
+            return p1
+
+        return None
+
+    def intersection_real(self, other, tolerance=1e-3):
+        point = self.intersection_virtual(other, tolerance)
+        if point is None:
+            return None
+
+        if self.extents_bound(point) and other.extents_bound(point):
+            return point
+
+        return None
+
+    def extents_bound(self, coordinate):
+        (xmin, ymin, zmin), (xmax, ymax, zmax) = self.extents
+        x, y, z = coordinate
+        return (
+            (xmin <= x <= xmax) and
+            (ymin <= y <= ymax) and
+            (zmin <= z <= zmax)
+            )
+
+    @property
+    def extents(self):
+        xi, yi, zi = self.i_node.coordinates
+        xj, yj, zj = self.j_node.coordinates
+        xmin, xmax = sorted((xi, xj))
+        ymin, ymax = sorted((yi, yj))
+        zmin, zmax = sorted((zi, zj))
+        return (xmin, ymin, zmin), (xmax, ymax, zmax)
+
+    @property
+    def properties(self):
+        return (
+            self.E,
+            self.G,
+            self.Iy,
+            self.Iz,
+            self.J,
+            self.A,
+        )
+
+
+
+
+def interp(x, xp, fp):
+    N = len(xp)
+
+    def get_interp(xv):
+        hi = 0
+        while hi < N and xv > xp[hi]:
+            hi += 1
+        low = hi - 1
+        return fp[-1] if hi == N and xv > xp[low] else (
+            fp[0] if hi == 0 else
+            (xv - xp[low]) * (fp[hi] - fp[low]) / (xp[hi] - xp[low]) + fp[low])
+    return [get_interp(v) for v in x] if hasattr(x, '__iter__') else get_interp(x)

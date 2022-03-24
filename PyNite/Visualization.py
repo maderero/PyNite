@@ -332,7 +332,7 @@ def RenderModel(model, annotation_size=5, deformed_shape=False, deformed_scale=3
                  True, combo_name, case, labels, screenshot)
 
 def render_model(model, annotation_size=5, deformed_shape=False, deformed_scale=30,
-                 render_loads=True, color_map=None, scalar_bar=True, combo_name='Combo 1', case=None, labels=True,
+                 render_loads=True, color_map=None, scalar_bar=True, scalar_bar_text_size=12, combo_name='Combo 1', case=None, labels=True,
                  screenshot=None):
     '''
     Renders a finite element model using VTK.
@@ -514,7 +514,7 @@ def render_model(model, annotation_size=5, deformed_shape=False, deformed_scale=
     
     # Render the plates and quads, if present
     if model.Quads or model.Plates:
-        _RenderContours(model, renderer, deformed_shape, deformed_scale, color_map, scalar_bar, combo_name)
+        _RenderContours(model, renderer, deformed_shape, deformed_scale, color_map, scalar_bar, scalar_bar_text_size, combo_name)
 
     # Set the window's background to gray
     renderer.SetBackground(0/255, 0/255, 128/255)
