@@ -2887,11 +2887,14 @@ class FEModel3D():
         while unverified_members:
             primary_member = unverified_members.pop(0)
             for i, secondary_member in enumerate(unverified_members):
+                all_nodes = set(primary_member.nodes + secondary_member.nodes)
+                if len(all_nodes) < 4:
+                    continue
+
                 intersection = primary_member.intersection(
                     secondary_member,
-                    tolerance=tolerance_intersection,
+                    tolerance=tolerance_node,
                     virtual=False)
-
                 if intersection is None:
                     continue
 
@@ -2903,22 +2906,21 @@ class FEModel3D():
                     Node = self.add_node(None, *intersection)
 
                 for member in (primary_member, secondary_member):
-                    new_members = self.split_member_at_node(member.name, Node)
-
+                    Member = member.name
+                    new_members = self.split_member_at_node(Member, Node)
                     unverified_members.extend(new_members)
 
                 unverified_members.pop(i)
                 break
 
     def split_member_at_node(self, Member, Node, name_i=None, name_j=None):
-        member = self.Members.pop(Member)
         node = self.Nodes[Node]
-
+        member = self.Members[Member]
         if node in member.nodes:
-            return (member, )
+            return [member, ]
 
-        name_i = self.add_member(name_i, member.i_node.name, node.name, member.properties)
-        name_j = self.add_member(name_j, node.name, member.j_node.name, member.properties)
+        name_i = self.add_member(name_i, member.i_node.name, node.name, **member.properties)
+        name_j = self.add_member(name_j, node.name, member.j_node.name, **member.properties)
 
         releases = self.get_releases(member.name)
         releases_i = {key: value for key, value in releases.items() if key.endswith('i')}
@@ -2971,4 +2973,5 @@ class FEModel3D():
             elif middle < x <= end:
                 self.add_member_pt_load(name_j, direction, P, x-middle, case)
 
+        self.Members.pop(Member)
         return self.Members[name_i], self.Members[name_j]
