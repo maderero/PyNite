@@ -74,7 +74,7 @@ f.add_member_pt_load(
     P=3.14, x=0.25*member.L(),
     case='Case 1')
 
-# Add a member point load. Should be j node of the vertical furthest from x=0.
+# Add a member point load. Should be on the vertical furthest from x=0.
 member = list(f.Members.values())[-1]
 f.add_member_pt_load(
     Member=member.name,
