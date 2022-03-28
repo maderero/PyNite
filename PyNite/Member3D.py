@@ -1819,6 +1819,7 @@ class Member3D():
     def extents_bound(self, coordinate, tolerance=1e-3):
         (xmin, ymin, zmin), (xmax, ymax, zmax) = self.extents
         x, y, z = coordinate
+
         def r(x):
             if x:
                 return round(x / tolerance) * tolerance
