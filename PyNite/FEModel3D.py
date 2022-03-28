@@ -481,7 +481,8 @@ class FEModel3D():
             # Remove any duplicate nodes that were found on the previous iteration from the copy of
             # the `Nodes` dictionary.
             for dup in duplicates:
-                temp.pop(dup)
+                if dup in temp.values():
+                    temp.pop(dup)
             
             # Reset `duplicates` to prepare to hold only the duplicates of the current `node_1`.
             duplicates = []
@@ -2885,13 +2886,13 @@ class FEModel3D():
         if merge_duplicates:
             self.merge_duplicate_nodes(tolerance=tolerance)
 
+        member_names_starting = set(self.Members)
         members = [[m] for m in self.Members.values()]
 
         for i in range(len(members)):
             for j in range(i+1, len(members)):
                 pool_a = members[i]
                 pool_b = members[j]
-
 
                 intersection_virtual = pool_a[0].intersection_virtual(pool_b[0], tolerance)
                 if intersection_virtual is None:
@@ -2918,11 +2919,25 @@ class FEModel3D():
                         pool.extend(new_members)
                     break
 
-    def split_member_at_node(self, Member, Node, name_i=None, name_j=None):
+        return {old_name: [m.name for m in new_members] for old_name, new_members in zip(member_names_starting, members)}
+
+    def split_member_at_node(
+        self,
+        Member,
+        Node,
+        name_i=None,
+        name_j=None,
+        releases_ij=None,
+        releases_ji=None,
+            ):
+
         node = self.Nodes[Node]
         member = self.Members[Member]
         if node in member.nodes:
             return [member, ]
+
+        releases_ij = releases_ij or {}
+        releases_ji = releases_ji or {}
 
         name_i = self.add_member(name_i, member.i_node.name, node.name, **member.properties)
         name_j = self.add_member(name_j, node.name, member.j_node.name, **member.properties)
