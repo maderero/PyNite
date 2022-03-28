@@ -1801,8 +1801,10 @@ class Member3D():
 
         return None
 
-    def intersection_real(self, other, tolerance=1e-3):
-        point = self.intersection_virtual(other, tolerance)
+    def intersection_real(self, other, point=None, tolerance=1e-3):
+        if point is None:
+            point = self.intersection_virtual(other, tolerance)
+
         if point is None:
             return None
 

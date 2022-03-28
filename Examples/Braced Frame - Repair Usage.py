@@ -11,7 +11,7 @@ f = FEModel3D()
 
 # Define Shape
 length_verticals = 12*12
-length_horizontals = 10*12
+length_horizontals = 12*12
 count_horizontals = 4
 count_verticals = 4
 strong_params = {'E': 29000, 'G': 11200, 'Iy': 11.4, 'Iz': 118, 'J': 0.239, 'A': 6.49}  # W10X22
@@ -85,8 +85,8 @@ f.add_member_pt_load(
 # Clean-up
 f.repair(
     merge_duplicates=True,  # must be run to avoid duplicate nodes
-    tolerance_node=1e-3,  # maximum 3d distance between coordinates to determine duplicate node
-    tolerance_intersection=1e-3)  # maximum 3d distance between lines to determine member intersection
+    tolerance=1e-3,  # maximum 3d distance between coordinates to determine duplicate node
+    )  # maximum 3d distance between lines to determine member intersection
 
 # Analyze
 f.analyze(log=False, check_statics=True)

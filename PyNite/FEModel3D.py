@@ -2,6 +2,8 @@
 from os import rename
 import warnings
 
+from itertools import product
+
 from numpy import array, zeros, matmul, divide, subtract, atleast_2d, nanmax
 from numpy import seterr, interp
 from numpy.linalg import solve, norm
@@ -2879,39 +2881,42 @@ class FEModel3D():
             if norm(subtract(node.coordinates, coordinates)) <= tolerance:
                 return Node
 
-    def repair(self, merge_duplicates=True, tolerance_node=1e-3, tolerance_intersection=1e-3):
+    def repair(self, merge_duplicates=True, tolerance=1e-3):
         if merge_duplicates:
-            self.merge_duplicate_nodes(tolerance=tolerance_node)
+            self.merge_duplicate_nodes(tolerance=tolerance)
 
-        unverified_members = list(self.Members.values())
-        while unverified_members:
-            primary_member = unverified_members.pop(0)
-            for i, secondary_member in enumerate(unverified_members):
-                all_nodes = set(primary_member.nodes + secondary_member.nodes)
-                if len(all_nodes) < 4:
+        members = [[m] for m in self.Members.values()]
+
+        for i in range(len(members)):
+            for j in range(i+1, len(members)):
+                pool_a = members[i]
+                pool_b = members[j]
+
+
+                intersection_virtual = pool_a[0].intersection_virtual(pool_b[0], tolerance)
+                if intersection_virtual is None:
                     continue
 
-                intersection = primary_member.intersection(
-                    secondary_member,
-                    tolerance=tolerance_node,
-                    virtual=False)
-                if intersection is None:
-                    continue
+                for (ai, a), (bi, b) in product(*map(enumerate, (pool_a, pool_b))):
+                    all_nodes = set(a.nodes + b.nodes)
+                    if len(all_nodes) < 4:
+                        break
 
-                Node = self.find_node_by_coordinates(
-                    intersection,
-                    tolerance_node)
+                    intersection_real = a.intersection_real(b, intersection_virtual, tolerance)
+                    if intersection_real is None:
+                        continue
 
-                if not Node:
-                    Node = self.add_node(None, *intersection)
+                    Node = self.find_node_by_coordinates(intersection_real, tolerance)
+                    if not Node:
+                        Node = self.add_node(None, *intersection_real)
 
-                for member in (primary_member, secondary_member):
-                    Member = member.name
-                    new_members = self.split_member_at_node(Member, Node)
-                    unverified_members.extend(new_members)
+                    for (index, member, pool) in ((ai, a, pool_a), (bi, b, pool_b)):
+                        Member = member.name
+                        new_members = self.split_member_at_node(Member, Node)
 
-                unverified_members.pop(i)
-                break
+                        pool.pop(index)
+                        pool.extend(new_members)
+                    break
 
     def split_member_at_node(self, Member, Node, name_i=None, name_j=None):
         node = self.Nodes[Node]
