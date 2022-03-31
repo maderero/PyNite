@@ -14,8 +14,8 @@ length_verticals = 25*12
 length_horizontals = 14*12
 count_horizontals = 6
 count_verticals = 2
-count_mullions = 1
-strong_params = {'E': 29000, 'G': 11200, 'Iy': 11.4, 'Iz': 118, 'J': 0.239, 'A': 6.49}  # W10X22
+count_mullions = 0
+strong_params = {'E': 29000, 'G': 11200, 'Iy': 118, 'Iz': 118, 'J': 0.239, 'A': 6.49}  # W10X22
 windload_psf = 32
 windload_ksi = windload_psf / 144 / 1000  # ksi
 girt_weight_lbpf = 22  # lb/ft
@@ -46,6 +46,7 @@ for i in range(count_horizontals):
 
 # Add Verticals
 names_verticals = []
+releases_verticals = {}
 for i in range(count_verticals):
     x = i / (count_verticals - 1) * length_horizontals
     name_node_low = f.add_node(None, x, 0, 0)
@@ -80,32 +81,16 @@ for ih in range(1, count_horizontals):
 
 # Add and define supports
 support_ll = f.add_node(None, 24, 0, 0)
+# support_ll2 = f.add_node(None, 24, -6, 0)
+
 support_lr = f.add_node(None, length_horizontals-24, 0, 0)
-# support_ul = f.add_node(None, 30, length_verticals, 0)
-# support_ur = f.add_node(None, length_horizontals-30, length_verticals, 0)
+# support_lr2 = f.add_node(None, length_horizontals-24, -6, 0)
 
-f.def_support(
-    support_ll,
-    support_DX=True, support_DY=True, support_DZ=True,
-    support_RX=False, support_RY=True, support_RZ=True)
-f.def_support(
-    support_lr,
-    support_DX=True, support_DY=True, support_DZ=True,
-    support_RX=False, support_RY=True, support_RZ=True)
-# f.def_support(
-#     support_ul,
-#     support_DX=True, support_DY=True, support_DZ=True,
-#     support_RX=False, support_RY=True, support_RZ=True)
-# f.def_support(
-#     support_ur,
-#     support_DX=True, support_DY=True, support_DZ=True,
-#     support_RX=False, support_RY=True, support_RZ=True)
+support_ul = f.add_node(None, 30, length_verticals, 0)
+# support_ul2 = f.add_node(None, 30, length_verticals+6, 0)
 
-_, right = f.split_member_at_node(names_horizontals[0], support_ll)
-f.split_member_at_node(right.name, support_lr)
-# _, right = f.split_member_at_node(names_horizontals[-1], support_ul)
-# f.split_member_at_node(right.name, support_ur)
-
+support_ur = f.add_node(None, length_horizontals-30, length_verticals, 0)
+# support_ur2 = f.add_node(None, length_horizontals-30, length_verticals+6, 0)
 
 # Clean-up
 f.repair(
@@ -113,10 +98,56 @@ f.repair(
     tolerance=1e-3,  # maximum 3d distance between coordinates to determine duplicate node
     )  # maximum 3d distance between lines to determine member intersection
 
-# Analyze
-f.analyze(log=False, check_statics=True)
+# f.add_member(None, support_ll, support_ll2, **strong_params)
+# f.add_member(None, support_lr, support_lr2, **strong_params)
+# f.add_member(None, support_ul, support_ul2, **strong_params)
+# f.add_member(None, support_ur, support_ur2, **strong_params)
 
+
+f.def_support(
+    support_ll,
+    support_DX=True, support_DY=True, support_DZ=True,
+    support_RX=True, support_RY=True, support_RZ=True)
+f.def_support(
+    support_lr,
+    support_DX=True, support_DY=True, support_DZ=True,
+    support_RX=True, support_RY=True, support_RZ=True)
+f.def_support(
+    support_ul,
+    support_DX=True, support_DY=True, support_DZ=True,
+    support_RX=True, support_RY=True, support_RZ=True)
+f.def_support(
+    support_ur,
+    support_DX=True, support_DY=True, support_DZ=True,
+    support_RX=True, support_RY=True, support_RZ=True)
+
+
+_, right = f.split_member_at_node(names_horizontals[0], support_ll)
+f.split_member_at_node(right.name, support_lr)
+
+_, right = f.split_member_at_node(names_horizontals[-1], support_ul)
+f.split_member_at_node(right.name, support_ur)
+
+
+# Analyze
+print('\n'*5)
+print('First order analysis')
+print('-'*30)
+f.analyze(log=True, check_statics=True)
+
+# print('\n'*5)
+# print('Second order analysis')
+# print('-'*30)
+# f.analyze_PDelta(log=True)
+# print('\n'*5)
 # Display the deformed shape of the structure magnified 1 times with the text
 # height 2 model units (inches) high.
-from PyNite import Visualization
-Visualization.render_model(f, annotation_size=2, deformed_shape=True, deformed_scale=100)
+
+
+# from PyNite import Visualization
+# Visualization.render_model(f, annotation_size=2, deformed_shape=True, deformed_scale=30)
+
+from PyNite import Reporting
+
+print('\n'*5)
+Reporting.create_report(f, '../out.pdf')

@@ -118,3 +118,5 @@ tr:nth-child(even) {
 tr:first-child td {
 	border-top: 1px solid #314C53;
 }
+
+tr    { page-break-inside:avoid; page-break-after:auto }
